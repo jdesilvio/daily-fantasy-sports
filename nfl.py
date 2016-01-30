@@ -24,9 +24,9 @@ def create_players_json():
     # Build player data
     for player in JSON:
         player["id"] = player["Id"]
-        player["slug"] = player['First'] + "-" + player['Last']
+        player["slug"] = player['First Name'] + "-" + player['Last Name']
         player["salary"] = float(player['Salary'])
-        player["projection"] = float(player['NF'])
+        player["projection"] = float(player['FPPG'])
         player["position"] = player["Position"]
         try:
             player['ppd'] = player['projection']/player['salary']
@@ -34,7 +34,7 @@ def create_players_json():
             player["ppd"] = 0
 
     for player in JSON:
-        map(player.pop, ['Salary', 'First', 'Last', 'FPPG', \
+        map(player.pop, ['Salary', 'First Name', 'Last Name', 'FPPG', \
         'Position', 'Id'])
 
     with open('players.json', 'w') as f:
@@ -212,24 +212,47 @@ if __name__ == "__main__":
 
     lineups = player_combos(data, \
     dpp_floor=10000, \
-    limit = 12, \
+    limit = 15, \
     selection_feature='ppd', \
     exclude=[\
+    'Cody-Latimer',\
+    'Andre-Ellington',\
+    'Cameron-Artis-Payne',\
+    'Brandon-Bolden',\
+    'Mike-Tolbert',\
+    'Kerwynn-Williams',\
+    'Juwan-Thompson',\
+    'Stepfan-Taylor',\
+    'Jeremy-Stewart',\
+    'Jermaine-Gresham',\
+    'Cam-Newton',\
+    'Tom-Brady',\
+    'Carolina-Panthers',\
+    'Brandon-LaFell',\
+    'Keshawn-Martin',\
+    'Danny-Amendola',\
+    'Steven-Jackson',\
+    'James-White',\
+    'Graham-Gano',\
+    'New England-Patriots',\
     '',\
-    'Russell-Wilson',\
     '',\
     '',\
     '',\
-    '',\
-    '',\
-    '',\
-    '',\
-    '',\
-    '',\
-    '',\
-    '',\
-    '',\
-    '',\
+    'Emmanuel-Sanders',\
+    'x Jamarcus-Nelson',\
+    'x Corey (Philly)-Brown',\
+    'x Devin-Funchess',\
+    'x Jerricho-Cotchery',\
+    'x Andre-Caldwell',\
+    'x Bennie-Fowler',\
+    'x Vernon-Davis',\
+    'Darren-Fells',\
+    'x Owen-Daniels',\
+    'x Demaryius-Thomas',\
+    'Ted-Ginn Jr.',\
+    'x Foswhitt-Whittaker',\
+    'x Owen-Daniels',\
     ])
 
     lineup_print(lineups, sort_feature='points', n=40)

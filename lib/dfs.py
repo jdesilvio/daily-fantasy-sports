@@ -5,8 +5,9 @@ import csv
 import time
 from bs4 import BeautifulSoup
 import json
-from itertools import combinations, product
+from itertools import combinations, product, chain
 from operator import itemgetter
+import numpy as np
 
 # Scrape bulk data from www.numberfire.com and
 def get_nf_data(url):
@@ -148,7 +149,9 @@ players_per_pos):
     combos = combinations(trimmed_pos_list, players_per_pos)
     return [ combo for combo in combos ]
 
-def construct_lineups(positions, limit=7, selection_feature='ppd'):
+def construct_lineups(positions, limit, selection_feature):
+
+    print "Start Time: ", time.strftime("%x"), time.strftime("%X")
 
     # Create position combos
     PG = create_position_combos(positions['PG'], selection_feature, limit, 2)
@@ -159,17 +162,14 @@ def construct_lineups(positions, limit=7, selection_feature='ppd'):
 
     # Create complete lineup combinations
     combos = product(PG, SG, SF, PF, C)
-
-    return combos
+    return [list(chain(*combo)) for combo in combos]
 
 def valid_lineups(combos, point_floor):
 
-    print "Start Time: ", time.strftime("%x"), time.strftime("%X")
-
-    # Iterate through lineup combos
     count = 0
     count_valid = 0
     lineups = []
+
     for combo in combos:
 
         ### Status
@@ -177,28 +177,16 @@ def valid_lineups(combos, point_floor):
         if count % 100000 == 0:
             print count, "Lineups processed -", count_valid, "are valid"
 
-        # Iterate through position tuples
-        lineup = []
-        lineup_salary = 0
-        for position in combo:
+        salary = sum(map(itemgetter("salary"), combo))
+        position = sum(map(itemgetter("projection"), combo))
 
-            # Map tuples to create list of dictionaries
-            position_dict = map(dict, position)
-
-            # Iterate through players to find valid lineups under $60,000
-            for player in position_dict:
-                lineup_salary += player['salary']
-                lineup.append(player)
-                # Only add if a complete and valid lineup
-                if lineup_salary <= 60000 and len(lineup) == 9:
-                    if sum(s['projection'] for s in lineup) > point_floor:
-                        count_valid += 1
-                        lineup_desc = {'lineup': lineup, \
-                        'salary': sum(s['salary'] for s in lineup), \
-                        'points': sum(s['projection'] for s in lineup), \
-                        'nerd': sum(float(s['nerd']) for s in lineup)}
-
-                        lineups.append(lineup_desc)
+        if salary <= 60000 and position > point_floor:
+            count_valid += 1
+            lineup = {'lineup': combo,
+                'salary':salary,
+                'points': position,
+                'nerd': sum(float(player['nerd']) for player in combo)}
+            lineups.append(lineup)
 
     ### Status
     print "Total lineups: ", len(lineups)
