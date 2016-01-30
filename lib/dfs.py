@@ -8,6 +8,7 @@ import json
 from itertools import combinations, product, chain
 from operator import itemgetter
 import numpy as np
+from tqdm import tqdm
 
 # Scrape bulk data from www.numberfire.com and
 def get_nf_data(url):
@@ -149,7 +150,7 @@ players_per_pos):
     combos = combinations(trimmed_pos_list, players_per_pos)
     return [ combo for combo in combos ]
 
-def construct_lineups(positions, limit, selection_feature):
+def construct_lineups(positions, limit, selection_feature, point_floor):
 
     print "Start Time: ", time.strftime("%x"), time.strftime("%X")
 
@@ -161,8 +162,13 @@ def construct_lineups(positions, limit, selection_feature):
     C = create_position_combos(positions['C'], selection_feature, limit, 1)
 
     # Create complete lineup combinations
-    combos = product(PG, SG, SF, PF, C)
-    return [list(chain(*combo)) for combo in combos]
+    combos = tqdm(product(PG, SG, SF, PF, C))
+    combos = tqdm([list(chain(*combo)) for combo in combos])
+    print "Possible Lineups: ", len(combos)
+    combos = tqdm([combo for combo in combos if sum(map(itemgetter("salary"), combo)) <= 60000])
+    combos = tqdm([combo for combo in combos if sum(map(itemgetter("projection"), combo)) >= point_floor])
+
+    return combos
 
 def valid_lineups(combos, point_floor):
 
@@ -170,23 +176,13 @@ def valid_lineups(combos, point_floor):
     count_valid = 0
     lineups = []
 
-    for combo in combos:
-
-        ### Status
-        count += 1
-        if count % 100000 == 0:
-            print count, "Lineups processed -", count_valid, "are valid"
-
-        salary = sum(map(itemgetter("salary"), combo))
-        position = sum(map(itemgetter("projection"), combo))
-
-        if salary <= 60000 and position > point_floor:
-            count_valid += 1
-            lineup = {'lineup': combo,
-                'salary':salary,
-                'points': position,
-                'nerd': sum(float(player['nerd']) for player in combo)}
-            lineups.append(lineup)
+    for combo in tqdm(combos):
+        count_valid += 1
+        lineup = {'lineup': combo,
+            'salary': sum(map(itemgetter("salary"), combo)),
+            'points': sum(map(itemgetter("projection"), combo)),
+            'nerd': sum(float(player['nerd']) for player in combo)}
+        lineups.append(lineup)
 
     ### Status
     print "Total lineups: ", len(lineups)
@@ -195,10 +191,10 @@ def valid_lineups(combos, point_floor):
     return lineups
 
 # Create valid lineups based on parameters
-def lines(players_data, dpp_floor=300, point_floor = 270, exclude=[], \
+def lines(players_data, dpp_floor=300, point_floor=270, exclude=[], \
 limit=7, selection_feature='ppd'):
     positions = create_position_lists(players_data, dpp_floor, point_floor, exclude)
-    combos = construct_lineups(positions, limit, selection_feature)
+    combos = construct_lineups(positions, limit, selection_feature, point_floor)
     return valid_lineups(combos, point_floor)
 
 # Print lineups

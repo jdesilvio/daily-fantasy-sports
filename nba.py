@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     lineups = lines(data, \
     dpp_floor=300, \
-    limit = 8, \
+    limit = 10, \
     selection_feature='ppd', \
     point_floor = 270, \
     exclude=[ \
