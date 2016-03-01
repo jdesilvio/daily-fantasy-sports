@@ -3,6 +3,7 @@ import lxml.html
 import re
 import csv
 import time
+from datetime import datetime
 from bs4 import BeautifulSoup
 import json
 from itertools import combinations, product, chain
@@ -10,7 +11,14 @@ from operator import itemgetter
 import numpy as np
 from tqdm import tqdm
 
-# Scrape bulk data from www.numberfire.com and
+def time_delta(t1, t2):
+    return str(int(abs(t2-t1) * 1000)) + "ms"
+
+################################################################################
+"""Scrape, transform and clean data""" #########################################
+################################################################################
+
+# Scrape bulk data from www.numberfire.com and returns a list of dicts
 def get_nf_data(url):
 
     # Send request to URL and convert HTML
@@ -27,6 +35,7 @@ def get_nf_data(url):
 
     return json.loads(data)
 
+# Normalize key names and derive data; returns a list of dicts
 def normalize_nf_data(data):
 
     # Get player_ids
@@ -58,7 +67,7 @@ def normalize_nf_data(data):
 
     return nf_data
 
-# Integrate Fanduel data for specific contest
+# Integrate Fanduel data for specific contest; writes data to JSON
 def fanduel_data(file, nf_data=None):
 
     # Read data from Fanduel file
@@ -85,8 +94,13 @@ def fanduel_data(file, nf_data=None):
         if count > 1:
             print "More than 1 player found for " + player['uid']
 
+    # Write data to JSON to allow manual editting
     with open('data/output/players.json', 'w') as f:
         json.dump(nf_data, f, indent=2)
+
+################################################################################
+""" Create lineups """ #########################################################
+################################################################################
 
 def create_position_lists(players_data, dpp_floor=300, point_floor = 270, exclude=[]):
 
@@ -137,7 +151,7 @@ players_per_pos):
 
     # Trim players list
     trimmed_pos_list = sorted(position_list, \
-    key=itemgetter(selection_feature), reverse = True)[0:limit]
+        key=itemgetter(selection_feature), reverse = True)[0:limit]
 
     # Print players in trimmed list
     for i in trimmed_pos_list:
@@ -152,7 +166,7 @@ players_per_pos):
 
 def construct_lineups(positions, limit, selection_feature, point_floor):
 
-    print "Start Time: ", time.strftime("%x"), time.strftime("%X")
+    start_constructing_lineups = time.time()
 
     # Create position combos
     PG = create_position_combos(positions['PG'], selection_feature, limit, 2)
@@ -162,13 +176,55 @@ def construct_lineups(positions, limit, selection_feature, point_floor):
     C = create_position_combos(positions['C'], selection_feature, limit, 1)
 
     # Create complete lineup combinations
-    combos = tqdm(product(PG, SG, SF, PF, C))
-    combos = tqdm([list(chain(*combo)) for combo in combos])
+    combos = product(PG, SG, SF, PF, C)
+    combos = [list(chain(*combo)) for combo in combos]
+
     print "Possible Lineups: ", len(combos)
-    combos = tqdm([combo for combo in combos if sum(map(itemgetter("salary"), combo)) <= 60000])
-    combos = tqdm([combo for combo in combos if sum(map(itemgetter("projection"), combo)) >= point_floor])
+
+    end_constructing_lineups = time.time()
+
+    print "Constructed lineups in: ", \
+        str(time_delta(end_constructing_lineups, start_constructing_lineups))
 
     return combos
+
+# Filter lineups by valid salaries and trimming by highest point totals
+def filter_lineups(combos, limit, selection_feature, point_floor):
+
+    start_filter = time.time()
+
+    # Filter lineups by total salary
+    combos.sort( \
+        key=lambda x: sum(y['salary'] for y in x))
+
+    ind = len(combos) / 2
+
+    combos_filtered = []
+    while len(combos) > 0 and len(combos_filtered) == 0:
+        if sum(map(itemgetter("salary"), combos[ind])) == 60000:
+            while sum(map(itemgetter("salary"), combos[ind])) == 60000:
+                ind = ind + 1
+            combos_filtered = combos[0:ind-1]
+            break
+        elif sum(map(itemgetter("salary"), combos[ind])) > 60000:
+            ind = ind - ((len(combos) - ind) / 2)
+        elif sum(map(itemgetter("salary"), combos[ind])) < 60000:
+            ind = ind + ((len(combos) - ind) / 2)
+
+    # Filter lineups by projected points
+    combos_filtered.sort( \
+        key=lambda x: sum(y['projection'] for y in x), reverse=True)
+
+    try:
+        combos_filtered = combos_filtered[0:100]
+    except:
+        pass
+
+    end_filter = time.time()
+
+    print "Filtered lineups in:", time_delta(start_filter, end_filter)
+
+    return combos_filtered
 
 def valid_lineups(combos, point_floor):
 
@@ -176,7 +232,7 @@ def valid_lineups(combos, point_floor):
     count_valid = 0
     lineups = []
 
-    for combo in tqdm(combos):
+    for combo in combos:
         count_valid += 1
         lineup = {'lineup': combo,
             'salary': sum(map(itemgetter("salary"), combo)),
@@ -195,7 +251,12 @@ def lines(players_data, dpp_floor=300, point_floor=270, exclude=[], \
 limit=7, selection_feature='ppd'):
     positions = create_position_lists(players_data, dpp_floor, point_floor, exclude)
     combos = construct_lineups(positions, limit, selection_feature, point_floor)
+    combos = filter_lineups(combos, limit, selection_feature, point_floor)
     return valid_lineups(combos, point_floor)
+
+################################################################################
+""" Print lineups """ ##########################################################
+################################################################################
 
 # Print lineups
 def lineup_print(lineups, n, sort_feature='points'):
